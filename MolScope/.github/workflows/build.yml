@@ -1,0 +1,43 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Smoke test (core, headless)
+        run: python -c "from molscope import core; ok, ver = core.rdkit_available(); assert ok, ver; print('RDKit', ver, '| cdx:', core.chemdraw_cdx_supported())"
+
+      - name: Build EXE
+        run: >
+          pyinstaller --noconfirm --clean --onefile --windowed
+          --name MolScope
+          --collect-all rdkit
+          --collect-submodules molscope
+          --hidden-import PIL._tkinter_finder
+          MolScope.py
+
+      - name: Verify artifact exists
+        run: if (!(Test-Path dist/MolScope.exe)) { exit 1 }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MolScope-windows
+          path: dist/MolScope.exe
+          retention-days: 30
